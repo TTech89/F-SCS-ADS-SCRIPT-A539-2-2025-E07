@@ -43,8 +43,10 @@ $track_bg = "bg-purple-100";
       </div>
 
       <nav class="flex items-center space-x-4">
-        <a href="courses.php" class="px-4 py-2 text-sm font-medium rounded-lg hover:bg-gray-100 transition-colors">Voltar para Trilhas</a>
+        <nav class="flex items-center space-x-4">
+        <a href="course-track.php" class="px-4 py-2 text-sm font-medium rounded-lg hover:bg-gray-100 transition-colors">Voltar para Trilhas</a>
         <a href="logout.php" class="px-4 py-2 text-sm font-medium rounded-lg bg-secondary text-white hover:opacity-90 transition-opacity">Sair</a>
+      </nav>
       </nav>
     </div>
   </header>
@@ -90,9 +92,9 @@ $track_bg = "bg-purple-100";
                 <div class="text-center text-4xl">
                     <span>🧙‍♂️</span> <span>→</span> <span>→</span> <span>→</span> <span>🏠</span>
                 </div>
-                <button class="w-full bg-secondary text-white py-3 rounded-lg font-semibold hover:opacity-90 transition-opacity mt-4">
+                <a href="lesson_iniciante_exercise.php" class="w-full bg-secondary text-white py-3 rounded-lg font-semibold hover:opacity-90 transition-opacity mt-4 block text-center">
                     Abrir Editor de Blocos
-                </button>
+                </a>
             </div>
         </section>
 

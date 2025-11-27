@@ -16,7 +16,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['login_submit'])) {
     $password = $_POST['password'];
 
     // 1. Tentar login como RESPONSÁVEL (usando a tabela 'responsaveis')
-    // Colunas usadas: id, senha_hash, nome_completo
+    // Colunas usadas: id, senha, nome_completo
     $sql = "SELECT id, senha, nome_completo FROM responsaveis WHERE email = ?";
     $stmt = $conn->prepare($sql);
     $stmt->bind_param("s", $email);
@@ -26,7 +26,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['login_submit'])) {
     if ($result->num_rows === 1) {
         $user = $result->fetch_assoc();
         
-        if (password_verify($password, $user['senha_hash'])) {
+        if (password_verify($password, $user['senha'])) {
             // Login de RESPONSÁVEL bem-sucedido!
             $_SESSION['user_id'] = $user['id'];
             $_SESSION['user_type'] = 'responsible'; // Novo campo para diferenciar

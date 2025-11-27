@@ -1,3 +1,67 @@
+<?php
+// ==========================================================
+// LÓGICA DE LOGIN, SESSÃO E BANCO DE DADOS (INTEGRADA DO login.php)
+// ==========================================================
+
+// 1. Inicia a sessão se ainda não estiver iniciada
+if (session_status() == PHP_SESSION_NONE) {
+    session_start();
+}
+// 2. Inclui a conexão com o banco de dados (db.php deve existir)
+include 'db.php'; 
+
+$is_logged_in = isset($_SESSION['user_id']); 
+$error_message = '';
+$success_message = isset($_GET['status']) && $_GET['status'] == 'registered' ? 'Cadastro concluído com sucesso! Faça login abaixo. 🎉' : '';
+
+// 3. Processa a submissão do formulário de Login do Modal
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['login_submit'])) {
+    
+    // Conecta e sanitiza
+    $email = $conn->real_escape_string($_POST['email']);
+    $password = $_POST['password'];
+
+    // Tentar login como RESPONSÁVEL (usando a tabela 'responsaveis')
+    // Nota: A coluna de senha deve ser a mesma usada no cadastro (ex: 'senha_hash' ou 'senha')
+    $sql = "SELECT id, senha, nome_completo FROM responsaveis WHERE email = ?";
+    $stmt = $conn->prepare($sql);
+    
+    if ($stmt) {
+        $stmt->bind_param("s", $email);
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        if ($result->num_rows === 1) {
+            $user = $result->fetch_assoc();
+            
+            // Verifica a senha. Ajuste 'senha' para a coluna correta de hash no seu BD (ex: 'senha_hash')
+            // Baseado na imagem e na sua lógica anterior, vou usar 'senha' (que deve conter o HASH)
+            if (password_verify($password, $user['senha'])) { 
+                // Login de RESPONSÁVEL bem-sucedido!
+                $_SESSION['user_id'] = $user['id'];
+                $_SESSION['user_type'] = 'responsible'; 
+                $_SESSION['nome_responsavel'] = $user['nome_completo'];
+                
+                // Redireciona para o Painel do Responsável
+                header("Location: dashboard_responsavel.php");
+                exit();
+            } else {
+                $error_message = "Email ou senha mágica incorretos. 🧙‍♂️";
+            }
+        } else {
+            // Se o email não for encontrado na tabela de responsáveis
+            $error_message = "Email ou senha mágica incorretos. 🧙‍♂️";
+        }
+        $stmt->close();
+    } else {
+         $error_message = "Erro de preparação da consulta: " . $conn->error;
+    }
+}
+
+// 4. Fecha a conexão com o BD
+$conn->close();
+
+?>
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -98,15 +162,6 @@
   </style>
 </head>
 <body class="min-h-screen">
-<?php
-// ==========================================================
-// TRECHO DE CÓDIGO PHP PARA CONEXÃO BÁSICA COM O BANCO DE DADOS
-// Mantenha esta lógica de back-end fora do escopo de front-end se possível.
-// ==========================================================
-
-$is_logged_in = false; // Simulação de estado de login
-
-?>
    
   <header class="sticky top-0 z-50 w-full border-b backdrop-blur bg-white/95 border-border">
     <div class="container mx-auto flex h-16 items-center justify-between px-4">
@@ -128,8 +183,8 @@ $is_logged_in = false; // Simulação de estado de login
 
       <div class="hidden md:flex items-center space-x-4">
         <?php if ($is_logged_in): ?>
-             <button class="px-4 py-2 text-sm font-medium rounded-lg hover:bg-gray-100 transition-colors">Meu Perfil</button>
-            <button class="px-4 py-2 text-sm font-medium rounded-lg bg-secondary text-white hover:opacity-90 transition-opacity">Sair</button>
+             <a href="dashboard_responsavel.php" class="px-4 py-2 text-sm font-medium rounded-lg hover:bg-gray-100 transition-colors">Meu Painel</a>
+            <a href="logout.php" class="px-4 py-2 text-sm font-medium rounded-lg bg-secondary text-white hover:opacity-90 transition-opacity">Sair</a>
         <?php else: ?>
              <button onclick="openModal('loginModal')" class="px-4 py-2 text-sm font-medium rounded-lg hover:bg-gray-100 transition-colors">Entrar</button>
             <button onclick="openModal('registerModal')" class="px-4 py-2 text-sm font-medium rounded-lg bg-secondary text-white hover:opacity-90 transition-opacity">Começar</button>
@@ -153,11 +208,11 @@ $is_logged_in = false; // Simulação de estado de login
         <a href="#testimonials" class="block text-sm font-medium text-muted-foreground hover:text-foreground">Avaliações</a>
         <div class="pt-4 space-y-2">
             <?php if ($is_logged_in): ?>
-                <button class="w-full px-4 py-2 text-sm font-medium rounded-lg hover:bg-gray-100 transition-colors text-left">Meu Perfil</button>
-                <button class="w-full px-4 py-2 text-sm font-medium rounded-lg bg-secondary text-white hover:opacity-90 transition-opacity text-left">Sair</button>
+                <a href="dashboard_responsavel.php" class="w-full px-4 py-2 text-sm font-medium rounded-lg hover:bg-gray-100 transition-colors text-left">Meu Painel</a>
+                <a href="logout.php" class="w-full px-4 py-2 text-sm font-medium rounded-lg bg-secondary text-white hover:opacity-90 transition-opacity text-left">Sair</a>
             <?php else: ?>
                 <button onclick="openModal('loginModal')" class="w-full px-4 py-2 text-sm font-medium rounded-lg hover:bg-gray-100 transition-colors text-left">Entrar</button>
-                <button onclick="openModal('registerModal')" class="w-full px-4 py-2 text-sm font-medium rounded-lg bg-secondary text-white hover:opacity-90 transition-opacity">Começar</button>
+                <button onclick="openModal('registerModal')" class="w-full px-4 py-2 text-sm font-medium rounded-lg bg-secondary text-white hover:opacity-90 transition-opacity text-left">Começar</button>
             <?php endif; ?>
         </div>
       </nav>
@@ -644,7 +699,18 @@ $is_logged_in = false; // Simulação de estado de login
         </button>
       </div>
 
-      <form action="process_register.php" method="POST" class="space-y-4">
+      <form action="index.php" method="POST" class="space-y-4">
+        <?php if ($error_message): ?>
+            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg text-sm" role="alert">
+                <?php echo $error_message; ?>
+            </div>
+        <?php endif; ?>
+        <?php if ($success_message): ?>
+            <div class="bg-teal-100 border border-teal-400 text-teal-700 px-4 py-3 rounded-lg text-sm" role="alert">
+                <?php echo $success_message; ?>
+            </div>
+        <?php endif; ?>
+
         <div>
           <label for="login-email" class="block text-sm font-medium text-foreground mb-1">E-mail</label>
           <input type="email" id="login-email" name="email" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary">
@@ -661,7 +727,7 @@ $is_logged_in = false; // Simulação de estado de login
             </button>
           </div>
         </div>
-        <button type="submit" class="w-full bg-primary text-white py-2 rounded-lg font-semibold hover:opacity-90 transition-opacity">Entrar</button>
+        <button type="submit" name="login_submit" class="w-full bg-primary text-white py-2 rounded-lg font-semibold hover:opacity-90 transition-opacity">Entrar</button>
       </form>
 
       <p class="mt-4 text-center text-sm text-gray-600">
@@ -776,6 +842,17 @@ $is_logged_in = false; // Simulação de estado de login
             }
         });
     });
+    
+    // Abrir o modal de login automaticamente se houver mensagem de erro ou sucesso
+    window.onload = function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const hasError = "<?php echo $error_message; ?>";
+        const isRegistered = urlParams.get('status') === 'registered';
+        
+        if (hasError || isRegistered) {
+            openModal('loginModal');
+        }
+    }
   </script>
 
 </body>

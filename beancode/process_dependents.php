@@ -1,54 +1,71 @@
 <?php
-// process_dependents.php (CÓDIGO CORRIGIDO PARA A TABELA 'alunos')
+// process_dependents.php (AJUSTADO PARA O BD ANEXADO)
 session_start();
 include 'db.php';
 
-// Verifica se o responsável está logado e tem o tipo correto
-if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'responsible' || !isset($_POST['dependents'])) {
-    header("Location: login.php"); 
+// Verifica se o responsável está logado
+if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'responsible') {
+    header("Location: index.php"); 
+    exit();
+}
+
+// Verifica se a submissão é do novo formulário de aluno
+if (!isset($_POST['submit_new_aluno'])) {
+    header("Location: dashboard_responsavel.php");
     exit();
 }
 
 $responsible_id = $_SESSION['user_id'];
-$dependents_data = $_POST['dependents'];
-$successful_count = 0;
-$error_count = 0;
+$alert_message = '';
 
-// Prepara a consulta para inserir o aluno.
-// ATENÇÃO: A tabela correta é 'alunos' e estamos usando as colunas essenciais:
-// responsavel_id, nome_user (apelido/nome de exibição), trilha_ativa e senha_hash.
-$sql = "INSERT INTO alunos (responsavel_id, nome_user, trilha_ativa, senha_hash) VALUES (?, ?, ?, ?)";
-$stmt = $conn->prepare($sql);
+// 1. Coleta e sanitiza os dados do POST
+$nome_user = $conn->real_escape_string($_POST['nome_user'] ?? '');
+$nome_completo = $conn->real_escape_string($_POST['nome_completo'] ?? '');
+$email = $conn->real_escape_string($_POST['email'] ?? '');
+$data_nasc = $conn->real_escape_string($_POST['data_nasc'] ?? ''); // Mudança: Usando data_nasc
+$password = $_POST['password'] ?? '';
+$repeat_password = $_POST['repeat_password'] ?? '';
+// A trilha será ignorada no INSERT, mas coletada no formulário
+$trilha_escolhida = $_POST['trilha_ativa'] ?? 'iniciante'; 
 
-if ($stmt) {
-    foreach ($dependents_data as $dependent) {
-        $name = $conn->real_escape_string($dependent['name'] ?? ''); // Nome do aluno / nome_user
-        $course = $conn->real_escape_string($dependent['course'] ?? 'iniciante'); // trilha_ativa
-        $password = $dependent['password'] ?? '';
-        $repeat_password = $dependent['repeat_password'] ?? '';
+// 2. Validação básica
+if (empty($nome_user) || empty($nome_completo) || empty($email) || empty($data_nasc) || empty($password)) {
+    $_SESSION['alert_message'] = "Erro: Todos os campos são obrigatórios.";
+} elseif ($password !== $repeat_password) {
+    $_SESSION['alert_message'] = "Erro: As senhas não coincidem.";
+} else {
+    // 3. Hash da senha
+    $password_hash = password_hash($password, PASSWORD_DEFAULT);
+    
+    // 4. Prepara a consulta SQL para a tabela 'alunos'
+    // ATENÇÃO: As colunas `trilha_ativa` foram removidas do INSERT para adequação ao BD
+    $sql = "INSERT INTO alunos (responsavel_id, nome_user, nome_completo, email, data_nasc, senha) 
+            VALUES (?, ?, ?, ?, ?, ?)"; 
+    
+    $stmt = $conn->prepare($sql);
 
-        if (empty($name) || empty($password) || $password !== $repeat_password) {
-            $error_count++;
-            continue; 
-        }
-        
-        $password_hash = password_hash($password, PASSWORD_DEFAULT);
-
-        // Binding: responsavel_id (int), nome_user (string), trilha_ativa (string), senha_hash (string)
-        $stmt->bind_param("isss", $responsible_id, $name, $course, $password_hash);
+    if ($stmt) {
+        // Binding: responsavel_id (i), nome_user (s), nome_completo (s), email (s), data_nasc (s), senha (s)
+        $stmt->bind_param("isssss", $responsible_id, $nome_user, $nome_completo, $email, $data_nasc, $password_hash);
 
         if ($stmt->execute()) {
-            $successful_count++;
+            $_SESSION['alert_message'] = "Programador **$nome_user** cadastrado com sucesso! 🎉";
         } else {
-            $error_count++;
+            if ($conn->errno === 1062) {
+                $_SESSION['alert_message'] = "Erro: O nome de usuário '$nome_user' já está em uso.";
+            } else {
+                $_SESSION['alert_message'] = "Erro ao cadastrar: " . $stmt->error;
+            }
         }
+        $stmt->close();
+    } else {
+        $_SESSION['alert_message'] = "Erro de preparação da consulta: " . $conn->error;
     }
-    $stmt->close();
 }
 
 $conn->close();
 
-// Redireciona para o novo painel do responsável após o cadastro
+// Redireciona de volta para o painel
 header("Location: dashboard_responsavel.php");
 exit();
 ?>
